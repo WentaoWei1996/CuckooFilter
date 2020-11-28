@@ -65,18 +65,31 @@ public class Main {
 
         Set<String> keySet = map.keySet();
         for (String key : keySet) {
-            cuckooFilter.insert(key);
+            cuckooFilter.insert(key, map.get(key));
         }
 
         int num = map.size();
 
         int equal = 0;
         for (String key : keySet) {
-            if (cuckooFilter.contains(key)) {
+            double value = cuckooFilter.get(key);
+            if (value == map.get(key)) {
                 equal++;
             }
         }
 
+        System.out.println("get Value Rate");
+        System.out.println(num - equal);
+        System.out.println(equal * 1.0 / num);
+        System.out.println();
+
+        equal = 0;
+        for (String key : keySet) {
+            if (cuckooFilter.contains(key)) {
+                equal++;
+            }
+        }
+        System.out.println("get Exist Rate");
         System.out.println(num - equal);
         System.out.println(equal * 1.0 / num);
     }

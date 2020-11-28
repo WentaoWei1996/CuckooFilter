@@ -1,5 +1,7 @@
 package com.wwt.cuckoofilter;
 
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.Random;
 
 /**
@@ -18,12 +20,15 @@ public class CuckooFilter {
 
     private Bucket[] buckets;
     private int capacity;
+    private static final int MAXIMUM_CAPACITY = 1 << 30;
     private static final int MAX_NUM_KICKS = 500;
+    private static final int FINGERPRINT_LEN = 1;
     private Random random;
     private int size;
 
     public CuckooFilter(int capacity) {
         this.random = new Random();
+        capacity = tableSizeFor(capacity);
         this.capacity = capacity;
         this.size = 0;
         this.buckets = new Bucket[capacity];
@@ -34,7 +39,7 @@ public class CuckooFilter {
 
     public boolean insert(String key, double value) {
 
-        byte f = fingerprint(key);
+        Fingerprint f = fingerprint(key, FINGERPRINT_LEN);
         int p1 = hash(key);
         int p2 = p1 ^ hash(f);
 
@@ -53,7 +58,7 @@ public class CuckooFilter {
 
     public double get(String key) {
 
-        byte f = fingerprint(key);
+        Fingerprint f = fingerprint(key, FINGERPRINT_LEN);
         int p1 = hash(key);
         int p2 = p1 ^ hash(f);
 
@@ -62,14 +67,14 @@ public class CuckooFilter {
 
     public boolean contains(String key) {
 
-        byte f = fingerprint(key);
+        Fingerprint f = fingerprint(key, FINGERPRINT_LEN);
         int p1 = hash(key);
         int p2 = p1 ^ hash(f);
 
         return this.buckets[p1].contains(f) || this.buckets[p2].contains(f);
     }
 
-    private boolean relocateAndInsert(int p1, int p2, byte f, double value) {
+    private boolean relocateAndInsert(int p1, int p2, Fingerprint f, double value) {
 
         boolean flag = this.random.nextBoolean();
         int replacedBucketPosition = flag ? p1 : p2;
@@ -78,11 +83,11 @@ public class CuckooFilter {
             //随机得到被替换bucket中slot的位置
             int replacedSlotPosition = this.random.nextInt(Bucket.BUCKET_SIZE);
             //获取被替换slot中的key和value
-            byte replacedF = this.buckets[replacedBucketPosition].slots[replacedSlotPosition].fingerprint;
-            double replaceValue = this.buckets[replacedBucketPosition].slots[replacedSlotPosition].value;
+            Fingerprint replacedF = this.buckets[replacedBucketPosition].slots[replacedSlotPosition].getFingerprint();
+            double replaceValue = this.buckets[replacedBucketPosition].slots[replacedSlotPosition].getValue();
             //将f和value插入带替换slot
-            this.buckets[replacedBucketPosition].slots[replacedSlotPosition].fingerprint = f;
-            this.buckets[replacedBucketPosition].slots[replacedSlotPosition].value = value;
+            this.buckets[replacedBucketPosition].slots[replacedSlotPosition].setFingerprint(f);
+            this.buckets[replacedBucketPosition].slots[replacedSlotPosition].setValue(value);
 
             //获取被替换f的对偶位置
             replacedBucketPosition = replacedSlotPosition ^ hash(replacedF);
@@ -99,7 +104,8 @@ public class CuckooFilter {
     public static class Bucket{
 
         private Slot[] slots;
-        public static int BUCKET_SIZE = 4;
+        public static final int BUCKET_SIZE = 4;
+        public static final byte NULL_FINGERPRINT = 0;
 
         public Bucket() {
             this.slots = new Slot[BUCKET_SIZE];
@@ -111,7 +117,7 @@ public class CuckooFilter {
         public boolean isFull() {
 
             for (int i = 0; i < BUCKET_SIZE; i++) {
-                if (this.slots[i].flag) {
+                if (this.slots[i].getFlag()) {
                     return false;
                 }
             }
@@ -119,13 +125,13 @@ public class CuckooFilter {
             return true;
         }
 
-        public boolean add(byte key, double value) {
+        public boolean add(Fingerprint key, double value) {
 
             for (int i = 0; i < BUCKET_SIZE; i++) {
-                if (this.slots[i].flag) {
-                    this.slots[i].fingerprint = key;
-                    this.slots[i].flag = false;
-                    this.slots[i].value = value;
+                if (this.slots[i].getFlag()) {
+                    this.slots[i].setFingerprint(key);
+                    this.slots[i].setFlag(false);
+                    this.slots[i].setValue(value);
                     return true;
                 }
             }
@@ -133,21 +139,21 @@ public class CuckooFilter {
             return false;
         }
 
-        public double get(byte f) {
+        public double get(Fingerprint f) {
 
             for (int i = 0; i < BUCKET_SIZE; i++) {
-                if (this.slots[i].fingerprint == f) {
-                    return this.slots[i].value;
+                if (this.slots[i].getFingerprint().equals(f)) {
+                    return this.slots[i].getValue();
                 }
             }
 
             return 0.0;
         }
 
-        public boolean contains(byte f) {
+        public boolean contains(Fingerprint f) {
 
             for (int i = 0; i < BUCKET_SIZE; i++) {
-                if (this.slots[i].fingerprint == f) {
+                if (this.slots[i].getFingerprint().equals(f)) {
                     return true;
                 }
             }
@@ -158,43 +164,128 @@ public class CuckooFilter {
 
     public static class Slot {
 
-        private byte fingerprint;
+        private Fingerprint fingerprint;
         private boolean flag;
         private double value;
 
         public Slot() {
-            this.fingerprint = 0;
+            this.fingerprint = new Fingerprint(2);
             this.flag = true;
             this.value = 0.0;
         }
 
-        public Slot(byte fingerprint, double value) {
+        public Slot(Fingerprint fingerprint, double value) {
             this.fingerprint = fingerprint;
             this.flag = false;
             this.value = value;
         }
 
-        public byte getFingerprint() {
+        public void setFingerprint(Fingerprint f) {
+            this.fingerprint = f;
+        }
+
+        public void setFlag(boolean flag) {
+            this.flag = flag;
+        }
+
+        public void setValue(double value) {
+            this.value = value;
+        }
+
+        public Fingerprint getFingerprint() {
             return this.fingerprint;
+        }
+
+        public boolean getFlag() {
+            return this.flag;
         }
 
         public double getValue() {
             return this.value;
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Slot)) return false;
+            Slot slot = (Slot) o;
+            return getFingerprint() == slot.getFingerprint();
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getFingerprint());
+        }
     }
 
-    public byte fingerprint(String key) {
+    public static class Fingerprint {
+
+        private byte[] fingerprint;
+        private int size;
+
+        public Fingerprint(int size) {
+            this.size = size;
+            this.fingerprint = new byte[size];
+        }
+
+        public byte[] getFingerprint() {
+            return fingerprint;
+        }
+
+        public void setFingerprint(byte[] fingerprint) {
+            this.fingerprint = fingerprint;
+        }
+
+        public int getSize() {
+            return size;
+        }
+
+        public void setSize(int size) {
+            this.size = size;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof Fingerprint)) return false;
+            Fingerprint that = (Fingerprint) o;
+            return Arrays.equals(getFingerprint(), that.getFingerprint());
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(getFingerprint());
+        }
+    }
+
+    public Fingerprint fingerprint(String key, int len) {
+
+        Fingerprint fingerprint = new Fingerprint(len);
+
+        byte[] fs = new byte[len];
 
         int h = key.hashCode();
 
-        h += ~(h << 15);
-        h ^= (h >> 10);
-        h += (h << 3);
-        h ^= (h >> 6);
-        h += ~(h << 11);
-        h ^= (h >> 16);
+        for (int i = 0; i < len; i++) {
+            h += ~(h << 15);
+            h ^= (h >> 10);
+            h += (h << 3);
+            h ^= (h >> 6);
+            h += ~(h << 11);
+            h ^= (h >> 16);
 
-        return (byte) h;
+            byte hash = (byte) h;
+            if (hash == Bucket.NULL_FINGERPRINT) {
+                hash = 40;
+            }
+
+            fs[i] = hash;
+        }
+
+        fingerprint.setFingerprint(fs);
+
+        return fingerprint;
+
     }
 
     public int hash(Object key) {
@@ -209,5 +300,15 @@ public class CuckooFilter {
         h ^= (h >> 15);
 
         return h & (this.capacity - 1);
+    }
+
+    static int tableSizeFor(int cap) {
+        int n = cap - 1;
+        n |= n >>> 1;
+        n |= n >>> 2;
+        n |= n >>> 4;
+        n |= n >>> 8;
+        n |= n >>> 16;
+        return (n < 0) ? 1 : (n >= MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY : n + 1;
     }
 }
