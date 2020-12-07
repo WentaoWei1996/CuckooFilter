@@ -10,10 +10,9 @@ import java.util.Random;
  */
 public class CuckooFilter {
 
-    static final int MAXIMUM_CAPACITY = 1 << 30;
-
-    private final int MAX_NUM_KICKS = 500;
-    private final int FINGERPRINT_LEN = 1;
+    private static final int MAXIMUM_CAPACITY = 1 << 30;
+    private static final int MAX_NUM_KICKS = 500;
+    private static final int FINGERPRINT_LEN = 1;
     private int capacity;
     private int size = 0;
     private Bucket[] buckets;

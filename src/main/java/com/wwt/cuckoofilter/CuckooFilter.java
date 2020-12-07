@@ -37,7 +37,7 @@ public class CuckooFilter {
         }
     }
 
-    public boolean insert(String key, double value) {
+    public boolean insert(Object key, double value) {
 
         Fingerprint f = fingerprint(key, FINGERPRINT_LEN);
         int p1 = hash(key);
@@ -56,7 +56,7 @@ public class CuckooFilter {
         return relocateAndInsert(p1, p2, f, value);
     }
 
-    public double get(String key) {
+    public double get(Object key) {
 
         Fingerprint f = fingerprint(key, FINGERPRINT_LEN);
         int p1 = hash(key);
@@ -258,7 +258,7 @@ public class CuckooFilter {
         }
     }
 
-    public Fingerprint fingerprint(String key, int len) {
+    public Fingerprint fingerprint(Object key, int len) {
 
         Fingerprint fingerprint = new Fingerprint(len);
 

@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * @Author: wwt
@@ -15,16 +16,17 @@ import java.util.*;
 public class Main {
 
     public static void main(String[] args) {
+
         testCuckooFilter();
-        System.out.println();
-        testCuckooFilterOfGithub();
-//        while (true) {
-//
-//        }
+//        System.out.println();
+//        testCuckooFilterOfGithub();
+        while (true) {
+
+        }
     }
 
     public static void testCuckooFilter() {
-        CuckooFilter cuckooFilter = new CuckooFilter(1 << 20);
+        CuckooFilter cuckooFilter = new CuckooFilter(1 << 22);
         Map<String, Double> map = read();
 
         Set<String> keySet = map.keySet();
@@ -33,7 +35,6 @@ public class Main {
         }
 
         int num = map.size();
-
         int equal = 0;
         for (String key : keySet) {
             double value = cuckooFilter.get(key);
